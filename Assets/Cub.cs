@@ -12,14 +12,18 @@ public class Cub : MonoBehaviour
     public float walkFrameRate = 0.1f; // 每帧切换间隔（越小越快）
     public Sprite standSprite;   // 站立图
     public Sprite jumpSprite;    // 跳跃图
+    public Sprite deathSprite;
     private Camera mainCamera;
     private Vector3 lastMousePos;
     public float dragSpeed = 0.01f;
     public int score = 0;
     public TMP_Text scoreText;
+    public TMP_Text liveText;
     public float moveSpeed = 5f;
     public int jumpcount = 0;
     public bool canjump = true;
+    public bool life =true;
+    private float live_time=10f;
 
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D rb2D;
@@ -38,6 +42,7 @@ public class Cub : MonoBehaviour
         QualitySettings.vSyncCount =0;
         Application.targetFrameRate=120;
         rb2D = GetComponent<Rigidbody2D>();
+        rb2D.freezeRotation = true;
         spriteRenderer = GetComponent<SpriteRenderer>();
 
         
@@ -76,8 +81,8 @@ public class Cub : MonoBehaviour
 
     void FixedUpdate()
     {   
-        if(!isPlayer) return;
-        // ✅ 修复：2D刚体用 velocity 而非 linearVelocity
+        if(!isPlayer||! life) return;
+        
         float horizontalInput = 0;
         if (keyboard != null)
         {
@@ -114,7 +119,23 @@ public class Cub : MonoBehaviour
     void Update()
     {
         if (!isPlayer) return;
-        // ✅ 修复：添加 isOnGround 判断，只有地面才能跳
+        if (true)
+        {
+            live_time-=Time.deltaTime;
+            live_time=Mathf.Max(live_time,0);
+
+            if(live_time<=0)
+            {
+                life=false;
+                spriteRenderer.sprite=deathSprite;
+            }
+        }
+        if(keyboard.rKey.wasPressedThisFrame)
+        {
+            life=true;
+            live_time=10f;
+        }
+        if (!life) return;
         if (canjump && keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
         {
             rb2D.linearVelocity = new Vector2(rb2D.linearVelocity.x, 0);
@@ -158,7 +179,6 @@ public class Cub : MonoBehaviour
             if (lastMousePos == Vector3.zero)
             {
                 lastMousePos = new Vector3(currentMouseScreenPos.x, currentMouseScreenPos.y, 0);
-                return;
             }
             Vector3 mouseDelta = lastMousePos - new Vector3(currentMouseScreenPos.x, currentMouseScreenPos.y, 0);
             float safeDeltaX = mouseDelta.x * dragSpeed * 0.01f;
@@ -189,8 +209,8 @@ public class Cub : MonoBehaviour
             newCube.GetComponent<Cub>().isPlayer = false;
             newCube.transform.localScale = new Vector3(Random.Range(1, 3), Random.Range(1, 3), 1);
             score++;
-            UpdateScoreText();
         }
+        UpdateScoreText();
     }
 
     // 碰撞检测（保留原有逻辑）
@@ -218,9 +238,10 @@ public class Cub : MonoBehaviour
 
     void UpdateScoreText()
     {
-        if (scoreText != null)
+        if (scoreText != null&&liveText !=null)
         {
             scoreText.text = "score:" + score;
+            liveText.text = "Left time:" +live_time;
         }
         else
         {
