@@ -25,12 +25,13 @@ public class Cub : MonoBehaviour
     public bool life =true;
     private float live_time=10f;
 
+    [SerializeField] private LayerMask groundLayer;
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D rb2D;
     private bool isOnGround = false;
     private Keyboard keyboard;
     private Mouse mouse;
-    private bool isPlayer = true;
+    [SerializeField] private bool isPlayer = true;
 
     void Start()
     {   
@@ -216,21 +217,27 @@ public class Cub : MonoBehaviour
     // 碰撞检测（保留原有逻辑）
     void OnCollisionEnter2D(Collision2D other)
     {
-        if (other.gameObject.name == "Ground"&&isPlayer)
+        if (((1 << other.gameObject.layer) & groundLayer) != 0 && isPlayer)
         {
-            isOnGround = true;
-            jumpcount = 0;
-            canjump = true;
+            foreach (ContactPoint2D contact in other.contacts)
+            {
+                if(contact.normal.y > 0.7f)
+                {
+                    isOnGround = true;
+                    jumpcount = 0;
+                    canjump = true;
+                }
             // if (spriteRenderer != null)
             // {
             //     spriteRenderer.color = new Color(Random.value, Random.value, Random.value);
-            // }
+            // }}
+            }
         }
     }
 
     void OnCollisionExit2D(Collision2D other)
     {
-        if (other.gameObject.name == "Ground")
+        if (((1<<other.gameObject.layer) & groundLayer)!=0)
         {
             isOnGround = false;
         }

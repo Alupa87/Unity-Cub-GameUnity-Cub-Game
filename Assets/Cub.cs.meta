@@ -1,2 +1,16 @@
 fileFormatVersion: 2
 guid: ed31622590bd59d47ac74607c3b23236
+MonoImporter:
+  externalObjects: {}
+  serializedVersion: 2
+  defaultReferences:
+  - standSprite: {fileID: 21300000, guid: 20e27af49d1dc5c40ab2eb6e6d54b960, type: 3}
+  - jumpSprite: {fileID: -534123079369380161, guid: 7c323518c7066da438dcea53872a1764, type: 3}
+  - deathSprite: {fileID: 21300000, guid: 0ec5a79d2ea91ff4cb27b50562452dc5, type: 3}
+  - scoreText: {instanceID: 0}
+  - liveText: {instanceID: 0}
+  executionOrder: 0
+  icon: {instanceID: 0}
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 
