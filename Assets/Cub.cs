@@ -4,14 +4,12 @@ using TMPro;
 
 public class Cub : MonoBehaviour
 {   
-    // public Sprite leftWalkSprite;
-    // public Sprite rightWalkSprite;
-    public Sprite[] walkSprites; // 走路动画帧数组（拖入多张走路图）
-    private float walkFrameTimer; // 走路帧计时器
-    private int currentWalkFrame; // 当前走路帧序号
-    public float walkFrameRate = 0.1f; // 每帧切换间隔（越小越快）
-    public Sprite standSprite;   // 站立图
-    public Sprite jumpSprite;    // 跳跃图
+    public Sprite[] walkSprites; 
+    private float walkFrameTimer; 
+    private int currentWalkFrame; 
+    public float walkFrameRate = 0.1f; 
+    public Sprite standSprite;   
+    public Sprite jumpSprite;    
     public Sprite deathSprite;
     private Camera mainCamera;
     private Vector3 lastMousePos;
@@ -22,16 +20,22 @@ public class Cub : MonoBehaviour
     public float moveSpeed = 5f;
     public int jumpcount = 0;
     public bool canjump = true;
-    public bool life =true;
-    private float live_time=10f;
+    public bool life = true;
+    private float live_time = 10f;
+    public bool stickwall = false; // 贴墙标记
 
-    [SerializeField] private LayerMask groundLayer;
+    [SerializeField] private LayerMask groundLayer; // 仅地面层
+    [SerializeField] private LayerMask wallLayer;   // 新增：仅墙壁层（必须单独分层！）
     private SpriteRenderer spriteRenderer;
     private Rigidbody2D rb2D;
     private bool isOnGround = false;
     private Keyboard keyboard;
     private Mouse mouse;
     [SerializeField] private bool isPlayer = true;
+
+    // 新增：重力参数（避免硬编码）
+    private float normalGravityScale; // 默认重力（读取rb2D初始值）
+    public float wallGravityScale = 2f; // 贴墙时重力（自主下落）
 
     void Start()
     {   
@@ -40,18 +44,15 @@ public class Cub : MonoBehaviour
         mouse = Mouse.current;
         mainCamera = Camera.main;
 
-        QualitySettings.vSyncCount =0;
-        Application.targetFrameRate=120;
+        QualitySettings.vSyncCount = 0;
+        Application.targetFrameRate = 120;
         rb2D = GetComponent<Rigidbody2D>();
         rb2D.freezeRotation = true;
+        // 保存默认重力（避免硬编码1f，适配Inspector面板设置）
+        normalGravityScale = rb2D.gravityScale;
+        
         spriteRenderer = GetComponent<SpriteRenderer>();
 
-        
-        // if (!isPlayer)
-        // {
-        //     enabled = false;
-        //     return;
-        // }
         if (rb2D == null)
         {
             Debug.LogError("给角色添加 Rigidbody2D 组件！");
@@ -65,24 +66,22 @@ public class Cub : MonoBehaviour
             return;
         }
 
-        // ✅ 第二步：判空后再赋值图片（避免空引用）
         if (standSprite != null)
         {
             spriteRenderer.sprite = standSprite;
-            spriteRenderer.color = Color.white; // 强制不透明
+            spriteRenderer.color = Color.white;
         }
         else
         {
             Debug.LogError("请把站立图拖到 Cub 脚本的 standSprite 槽位！");
         }
 
-        // 初始化分数
         UpdateScoreText();
     }
 
     void FixedUpdate()
     {   
-        if(!isPlayer||! life) return;
+        if(!isPlayer || !life) return;
         
         float horizontalInput = 0;
         if (keyboard != null)
@@ -90,53 +89,68 @@ public class Cub : MonoBehaviour
             if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) horizontalInput = -1;
             if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) horizontalInput = 1;
         }
-        rb2D.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb2D.linearVelocity.y);
-        if (spriteRenderer != null && walkSprites != null && walkSprites.Length > 0 && horizontalInput!=0 && isOnGround)
+
+        // 贴墙时锁定水平输入（避免贴墙时仍能左右移动）
+        if (!stickwall)
         {
-            // 计时器计时
+            rb2D.linearVelocity = new Vector2(horizontalInput * moveSpeed, rb2D.linearVelocity.y);
+        }
+        else
+        {
+            rb2D.linearVelocity = new Vector2(0,rb2D.linearVelocity.y);
+        }
+
+        // 动画逻辑（保留）
+        if (spriteRenderer != null && walkSprites != null && walkSprites.Length > 0 && horizontalInput != 0 && isOnGround)
+        {
             walkFrameTimer += Time.deltaTime;
             if (walkFrameTimer >= walkFrameRate)
             {
-                // 切换到下一帧
                 currentWalkFrame = (currentWalkFrame + 1) % walkSprites.Length;
                 spriteRenderer.sprite = walkSprites[currentWalkFrame];
                 walkFrameTimer = 0;
             }
-            if (horizontalInput>0) spriteRenderer.flipX=true;
-            if (horizontalInput<0) spriteRenderer.flipX=false;
+            spriteRenderer.flipX = horizontalInput > 0;
         }
         else if(isOnGround)
         {
-            spriteRenderer.sprite=standSprite;
+            spriteRenderer.sprite = standSprite;
         }
         else
         {
-            if(jumpSprite!=null)
-            {spriteRenderer.sprite=jumpSprite;
-            spriteRenderer.flipX=horizontalInput<0;}
+            if(jumpSprite != null)
+            {
+                spriteRenderer.sprite = jumpSprite;
+                spriteRenderer.flipX = horizontalInput < 0;
+            }
         }
     }
 
     void Update()
     {
         if (!isPlayer) return;
-        if (true)
-        {
-            live_time-=Time.deltaTime;
-            live_time=Mathf.Max(live_time,0);
 
-            if(live_time<=0)
-            {
-                life=false;
-                spriteRenderer.sprite=deathSprite;
-            }
-        }
-        if(keyboard.rKey.wasPressedThisFrame)
+        // 存活时间逻辑
+        live_time -= Time.deltaTime;
+        live_time = Mathf.Max(live_time, 0);
+
+        if(keyboard.rKey.isPressed)
         {
-            life=true;
-            live_time=10f;
+            life = true;
+            live_time = 10f;
+            spriteRenderer.sprite = standSprite;
         }
+
+        if(live_time <= 0)
+        {
+            life = false;
+            spriteRenderer.sprite = deathSprite;
+            return; // 死亡后直接退出，避免逻辑混乱
+        }
+
         if (!life) return;
+
+        // 跳跃逻辑
         if (canjump && keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
         {
             rb2D.linearVelocity = new Vector2(rb2D.linearVelocity.x, 0);
@@ -146,34 +160,12 @@ public class Cub : MonoBehaviour
             {
                 canjump = false;
             }
+            // 跳跃时重置贴墙状态
+            stickwall = false;
+            rb2D.gravityScale = normalGravityScale;
         }
 
-        
-        // if (spriteRenderer != null && horizontalInput!=0 && isOnGround)
-        // {
-        //     // 计时器计时
-        //     walkFrameTimer += Time.deltaTime;
-        //     if (walkFrameTimer >= walkFrameRate)
-        //     {
-        //         // 切换到下一帧
-        //         currentWalkFrame = (currentWalkFrame + 1) % walkSprites.Length;
-        //         spriteRenderer.sprite = walkSprites[currentWalkFrame];
-        //         walkFrameTimer = 0;
-        //     }
-        //     if (horizontalInput>0) spriteRenderer.flipX=true;
-        //     if (horizontalInput<0) spriteRenderer.flipX=false;
-        // }
-        // else if(isOnGround)
-        // {
-        //     spriteRenderer.sprite=standSprite;
-        // }
-        // else
-        // {
-        //     spriteRenderer.sprite=jumpSprite;
-        // }
-
-
-        
+        // 相机拖拽逻辑（保留）
         if (mouse != null && mouse.rightButton.isPressed)
         {
             Vector2 currentMouseScreenPos = mouse.position.ReadValue();
@@ -199,7 +191,7 @@ public class Cub : MonoBehaviour
             lastMousePos = Vector3.zero;
         }
 
-        // 鼠标左键生成方块（保留原有逻辑）
+        // 生成方块逻辑（保留）
         if (mouse != null && mouse.leftButton.wasPressedThisFrame)
         {
             Vector2 screenPos = mouse.position.ReadValue();
@@ -211,13 +203,17 @@ public class Cub : MonoBehaviour
             newCube.transform.localScale = new Vector3(Random.Range(1, 3), Random.Range(1, 3), 1);
             score++;
         }
+
         UpdateScoreText();
     }
 
-    // 碰撞检测（保留原有逻辑）
+    // 首次碰撞（仅落地判定）
     void OnCollisionEnter2D(Collision2D other)
     {
-        if (((1 << other.gameObject.layer) & groundLayer) != 0 && isPlayer)
+        if (!isPlayer) return;
+
+        // 落地判定
+        if (((1 << other.gameObject.layer) & groundLayer) != 0)
         {
             foreach (ContactPoint2D contact in other.contacts)
             {
@@ -226,33 +222,67 @@ public class Cub : MonoBehaviour
                     isOnGround = true;
                     jumpcount = 0;
                     canjump = true;
+                    // 落地时重置贴墙状态和重力
+                    stickwall = false;
+                    rb2D.gravityScale = normalGravityScale;
+                    break;
                 }
-            // if (spriteRenderer != null)
-            // {
-            //     spriteRenderer.color = new Color(Random.value, Random.value, Random.value);
-            // }}
             }
         }
     }
 
+    // 持续碰撞（核心：贴墙判定 + 实时落地验证）
+    void OnCollisionStay2D(Collision2D other)
+    {
+        if(((1<< other.gameObject.layer)&groundLayer)!=0 && isPlayer)
+        {
+            // 先重置贴墙状态，避免误判
+            stickwall = false;
+            
+            foreach(ContactPoint2D contact in other.contacts)
+            {
+                // 只在"未落地+接触竖直墙"时才标记贴墙
+                if(!isOnGround && Mathf.Abs(contact.normal.x) > 0.3f && contact.normal.y < 0.7f)
+                {
+                    stickwall = true;
+                    rb2D.gravityScale = 2f; // 保证自主下落
+                }
+                // 实时验证是否落地
+                if(contact.normal.y > 0.7f)
+                {
+                    isOnGround = true;
+                    stickwall = false;
+                    rb2D.gravityScale = 3f;
+                }
+            }
+        }
+    }
+
+    // 碰撞退出（重置状态）
     void OnCollisionExit2D(Collision2D other)
     {
-        if (((1<<other.gameObject.layer) & groundLayer)!=0)
+        if (!isPlayer) return;
+
+        // 离开地面
+        if (((1 << other.gameObject.layer) & groundLayer) != 0)
         {
             isOnGround = false;
         }
+
+        stickwall =false;
+        rb2D.gravityScale =3f;
     }
 
     void UpdateScoreText()
     {
-        if (scoreText != null&&liveText !=null)
+        if (scoreText != null && liveText != null)
         {
             scoreText.text = "score:" + score;
-            liveText.text = "Left time:" +live_time;
+            liveText.text = "Left time:" + Mathf.Round(live_time); // 四舍五入，避免小数过多
         }
         else
         {
-            Debug.LogWarning("请把 ScoreText 拖到 Cub 脚本的 scoreText 槽位！");
+            Debug.LogWarning("请把 ScoreText/LiveText 拖到 Cub 脚本对应槽位！");
         }
     }
 }
